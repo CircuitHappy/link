@@ -21,8 +21,12 @@
 
 #include <ableton/discovery/NetworkByteStreamSerializable.hpp>
 #include <functional>
-#include <sstream>
 #include <unordered_map>
+
+#include <iostream>
+#include <sstream>
+#include <stdio.h>
+#include <string.h>
 
 namespace ableton
 {
