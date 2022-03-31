@@ -80,5 +80,55 @@ private:
   Clock mHostTimeSampler;
 };
 
+template <class Clock>
+class HostTimeFilterFloat
+{
+  static const std::size_t kNumPoints = 512;
+  using Points = std::vector<std::pair<float, float>>;
+  using PointIt = typename Points::iterator;
+
+public:
+  HostTimeFilterFloat()
+    : mIndex(0)
+  {
+    mPoints.reserve(kNumPoints);
+  }
+
+  ~HostTimeFilterFloat() = default;
+
+  void reset()
+  {
+    mIndex = 0;
+    mPoints.clear();
+  }
+
+  std::chrono::microseconds sampleTimeToHostTime(const float sampleTime)
+  {
+    const auto micros = static_cast<float>(mHostTimeSampler.micros().count());
+    const auto point = std::make_pair(sampleTime, micros);
+
+    if (mPoints.size() < kNumPoints)
+    {
+      mPoints.push_back(point);
+    }
+    else
+    {
+      mPoints[mIndex] = point;
+    }
+    mIndex = (mIndex + 1) % kNumPoints;
+
+    const auto result = linearRegression(mPoints.begin(), mPoints.end());
+
+    const auto hostTime = (result.first * sampleTime) + result.second;
+
+    return std::chrono::microseconds(llround(hostTime));
+  }
+
+private:
+  std::size_t mIndex;
+  Points mPoints;
+  Clock mHostTimeSampler;
+};
+
 } // namespace link
 } // namespace ableton

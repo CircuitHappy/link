@@ -52,5 +52,30 @@ std::pair<double, double> linearRegression(It begin, It end)
   return std::make_pair(slope, intercept);
 }
 
+template <typename It>
+std::pair<float, float> linearRegressionFloat(It begin, It end)
+{
+  float sumX = 0.0;
+  float sumXX = 0.0;
+  float sumXY = 0.0;
+  float sumY = 0.0;
+  for (auto i = begin; i != end; ++i)
+  {
+    sumX += i->first;
+    sumXX += i->first * i->first;
+    sumXY += i->first * i->second;
+    sumY += i->second;
+  }
+
+  const float numPoints = static_cast<float>(distance(begin, end));
+  assert(numPoints > 0);
+  const float denominator = numPoints * sumXX - sumX * sumX;
+  const float slope =
+    denominator == 0.0 ? 0.0 : (numPoints * sumXY - sumX * sumY) / denominator;
+  const float intercept = (sumY - slope * sumX) / numPoints;
+
+  return std::make_pair(slope, intercept);
+}
+
 } // namespace link
 } // namespace ableton
