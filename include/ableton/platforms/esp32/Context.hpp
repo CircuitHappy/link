@@ -88,7 +88,7 @@ class Context
 
       timer_init(TIMER_GROUP_0, TIMER_1, &config);
       timer_set_counter_value(TIMER_GROUP_0, TIMER_1, 0);
-      timer_set_alarm_value(TIMER_GROUP_0, TIMER_1, 1000);
+      timer_set_alarm_value(TIMER_GROUP_0, TIMER_1, 100);
       timer_enable_intr(TIMER_GROUP_0, TIMER_1);
       timer_isr_register(TIMER_GROUP_0, TIMER_1, &timerIsr, mTaskHandle, 0, nullptr);
 
