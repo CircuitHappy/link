@@ -196,11 +196,27 @@ inline double BasicLink<Clock>::SessionState::beatAtTime(
 }
 
 template <typename Clock>
+inline float BasicLink<Clock>::SessionState::beatAtTimeSingle(
+  const std::chrono::microseconds time, const float quantum) const
+{
+  return link::toPhaseEncodedBeatsSingle(mState.timeline, time, link::Beats{quantum})
+    .floatingSingle();
+}
+
+template <typename Clock>
 inline double BasicLink<Clock>::SessionState::phaseAtTime(
   const std::chrono::microseconds time, const double quantum) const
 {
   return link::phase(link::Beats{beatAtTime(time, quantum)}, link::Beats{quantum})
     .floating();
+}
+
+template <typename Clock>
+inline float BasicLink<Clock>::SessionState::phaseAtTimeSingle(
+  const std::chrono::microseconds time, const float quantum) const
+{
+  return link::phase(link::Beats{beatAtTimeSingle(time, quantum)}, link::Beats{quantum})
+    .floatingSingle();
 }
 
 template <typename Clock>

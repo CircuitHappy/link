@@ -267,6 +267,7 @@ public:
      *  property holds: fmod(beatAtTime(t, q), q) == phaseAtTime(t, q)
      */
     double beatAtTime(std::chrono::microseconds time, double quantum) const;
+    float  beatAtTimeSingle(std::chrono::microseconds time, float quantum) const;
 
     /*! @brief: Get the session phase at the given time for the given
      *  quantum.
@@ -279,6 +280,7 @@ public:
      *  correctly.
      */
     double phaseAtTime(std::chrono::microseconds time, double quantum) const;
+    float  phaseAtTimeSingle(std::chrono::microseconds time, float quantum) const;
 
     /*! @brief: Get the time at which the given beat occurs for the
      *  given quantum.

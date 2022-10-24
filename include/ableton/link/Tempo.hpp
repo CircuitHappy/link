@@ -59,6 +59,12 @@ struct Tempo
       static_cast<double>(micros.count()) / static_cast<double>(microsPerBeat().count())};
   }
 
+  Beats microsToBeatsSingle(const std::chrono::microseconds micros) const
+  {
+    return Beats{
+      static_cast<float>(micros.count()) / static_cast<float>(microsPerBeat().count())};
+  }
+
   // Given the tempo, convert a beat to a time value
   std::chrono::microseconds beatsToMicros(const Beats beats) const
   {

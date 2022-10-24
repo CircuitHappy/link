@@ -46,6 +46,11 @@ struct Timeline
     return beatOrigin + tempo.microsToBeats(time - timeOrigin);
   }
 
+  Beats toBeatsSingle(const std::chrono::microseconds time) const
+  {
+    return beatOrigin + tempo.microsToBeatsSingle(time - timeOrigin);
+  }
+
   std::chrono::microseconds fromBeats(const Beats beats) const
   {
     return timeOrigin + tempo.beatsToMicros(beats - beatOrigin);
