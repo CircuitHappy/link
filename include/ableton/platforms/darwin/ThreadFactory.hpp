@@ -1,4 +1,4 @@
-/* Copyright 2016, Ableton AG, Berlin. All rights reserved.
+/* Copyright 2021, Ableton AG, Berlin. All rights reserved.
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,25 +19,30 @@
 
 #pragma once
 
-#include <algorithm>
+#include <pthread.h>
+#include <thread>
+#include <utility>
 
 namespace ableton
 {
 namespace platforms
 {
-namespace asio
+namespace darwin
 {
 
-// Utility for making v4 or v6 ip addresses from raw bytes in network byte-order
-template <typename AsioAddrType>
-AsioAddrType makeAddress(const char* pAddr)
+struct ThreadFactory
 {
-  using namespace std;
-  typename AsioAddrType::bytes_type bytes;
-  copy(pAddr, pAddr + bytes.size(), begin(bytes));
-  return AsioAddrType{bytes};
-}
+  template <typename Callable, typename... Args>
+  static std::thread makeThread(std::string name, Callable&& f, Args&&... args)
+  {
+    return std::thread{[](std::string name, Callable&& f, Args&&... args) {
+                         pthread_setname_np(name.c_str());
+                         f(args...);
+                       },
+      std::move(name), std::forward<Callable>(f), std::forward<Args>(args)...};
+  }
+};
 
-} // namespace asio
+} // namespace darwin
 } // namespace platforms
 } // namespace ableton

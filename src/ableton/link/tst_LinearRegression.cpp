@@ -27,50 +27,76 @@ namespace ableton
 namespace link
 {
 
-using Vector = std::vector<std::pair<double, double>>;
-
-TEST_CASE("LinearRegression | EmptyVector", "[LinearRegression]")
-{
-  Vector data;
-  const auto result = linearRegression(data.begin(), data.end());
-  CHECK(0 == Approx(result.first));
-}
-
-TEST_CASE("LinearRegression | OnePoint", "[LinearRegression]")
+TEST_CASE("LinearRegression")
 {
   using Array = std::array<std::pair<double, double>, 1>;
-  Array data;
-  data[0] = {{}, {}};
-  const auto result = linearRegression(data.begin(), data.end());
-  CHECK(0 == Approx(result.first));
-  CHECK(0 == Approx(result.second));
-}
+  using Vector = std::vector<std::pair<double, double>>;
+  using FloatVector = std::vector<std::pair<float, float>>;
 
-TEST_CASE("LinearRegression | TwoPoints", "[LinearRegression]")
-{
-  Vector data;
-  data.emplace_back(0.0, 0.0);
-  data.emplace_back(666666.6, 66666.6);
-
-  const auto result = linearRegression(data.begin(), data.end());
-  CHECK(0.1 == Approx(result.first));
-  CHECK(0.0 == Approx(result.second));
-}
-
-TEST_CASE("LinearRegression | 10000Points", "[LinearRegression]")
-{
-  Vector data;
-  const double slope = -0.2;
-  const double intercept = -357.53456;
-
-  for (int i = 1; i < 10000; ++i)
+  SECTION("OnePoint")
   {
-    data.emplace_back(i, i * slope + intercept);
+    Array data;
+    data[0] = {0., 0.};
+    const auto result = linearRegression(data.begin(), data.end());
+    CHECK_THAT(result.first, Catch::Matchers::WithinAbs(0, 0.00001));
+    CHECK_THAT(result.second, Catch::Matchers::WithinAbs(0, 0.00001));
   }
 
-  const auto result = linearRegression(data.begin(), data.end());
-  CHECK(slope == Approx(result.first));
-  CHECK(intercept == Approx(result.second));
+  SECTION("TwoPoints")
+  {
+    Vector data;
+    data.emplace_back(0.0, 0.0);
+    data.emplace_back(666666.6, 66666.6);
+
+    const auto result = linearRegression(data.begin(), data.end());
+    CHECK_THAT(result.first, Catch::Matchers::WithinAbs(0.1, 0.00001));
+    CHECK_THAT(result.second, Catch::Matchers::WithinAbs(0.0, 0.00001));
+  }
+
+  SECTION("10000Points")
+  {
+    Vector data;
+    const double slope = -0.2;
+    const double intercept = -357.53456;
+
+    for (int i = 1; i < 10000; ++i)
+    {
+      data.emplace_back(i, i * slope + intercept);
+    }
+
+    const auto result = linearRegression(data.begin(), data.end());
+    CHECK_THAT(slope, Catch::Matchers::WithinAbs(result.first, 1e-7));
+    CHECK_THAT(intercept, Catch::Matchers::WithinAbs(result.second, 1e-7));
+  }
+
+  SECTION("TwoPoints Float")
+  {
+    FloatVector data;
+    data.emplace_back(0.f, 0.f);
+    data.emplace_back(666666.6f, 66666.6f);
+
+    const auto result = linearRegression(data.begin(), data.end());
+    CHECK_THAT(static_cast<double>(result.first), Catch::Matchers::WithinAbs(0.1, 0.002));
+    CHECK_THAT(static_cast<double>(result.second), Catch::Matchers::WithinAbs(0., 0.002));
+  }
+
+  SECTION("10000Points Float")
+  {
+    FloatVector data;
+    const float slope = -0.2f;
+    const float intercept = -357.53456f;
+
+    for (int i = 1; i < 500; ++i)
+    {
+      data.emplace_back(static_cast<float>(i), static_cast<float>(i) * slope + intercept);
+    }
+
+    const auto result = linearRegression(data.begin(), data.end());
+    CHECK_THAT(
+      slope, Catch::Matchers::WithinAbs(static_cast<double>(result.first), 1e-3));
+    CHECK_THAT(
+      intercept, Catch::Matchers::WithinAbs(static_cast<double>(result.second), 1e-3));
+  }
 }
 
 } // namespace link

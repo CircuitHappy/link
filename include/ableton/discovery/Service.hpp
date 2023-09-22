@@ -46,9 +46,9 @@ public:
   // Asynchronously operate on the current set of peer gateways. The
   // handler will be invoked in the service's io context.
   template <typename Handler>
-  void withGatewaysAsync(Handler handler)
+  void withGateways(Handler handler)
   {
-    mGateways.withGatewaysAsync(std::move(handler));
+    mGateways.withGateways(std::move(handler));
   }
 
   void updateNodeState(const NodeState& state)
@@ -59,7 +59,7 @@ public:
   // Repair the gateway with the given address if possible. Its
   // sockets may have been closed, for example, and the gateway needs
   // to be regenerated.
-  void repairGateway(const asio::ip::address& gatewayAddr)
+  void repairGateway(const IpAddress& gatewayAddr)
   {
     mGateways.repairGateway(gatewayAddr);
   }

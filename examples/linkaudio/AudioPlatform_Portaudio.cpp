@@ -57,9 +57,9 @@ int AudioPlatform::audioCallback(const void* /*inputBuffer*/,
   const auto hostTime =
     platform.mHostTimeFilter.sampleTimeToHostTime(platform.mSampleTime);
 
-  platform.mSampleTime += inNumFrames;
+  platform.mSampleTime += static_cast<double>(inNumFrames);
 
-  const auto bufferBeginAtOutput = hostTime + engine.mOutputLatency;
+  const auto bufferBeginAtOutput = hostTime + engine.mOutputLatency.load();
 
   engine.audioCallback(bufferBeginAtOutput, inNumFrames);
 
@@ -79,7 +79,7 @@ void AudioPlatform::initialize()
   {
     std::cerr << "Could not initialize Audio Engine. " << result << std::endl;
     std::terminate();
-  };
+  }
 
   PaStreamParameters outputParameters;
   outputParameters.device = Pa_GetDefaultOutputDevice();
@@ -94,8 +94,8 @@ void AudioPlatform::initialize()
   outputParameters.suggestedLatency =
     Pa_GetDeviceInfo(outputParameters.device)->defaultLowOutputLatency;
   outputParameters.hostApiSpecificStreamInfo = nullptr;
-  mEngine.mOutputLatency =
-    std::chrono::microseconds(llround(outputParameters.suggestedLatency * 1.0e6));
+  mEngine.mOutputLatency.store(
+    std::chrono::microseconds(llround(outputParameters.suggestedLatency * 1.0e6)));
   result = Pa_OpenStream(&pStream, nullptr, &outputParameters, mEngine.mSampleRate,
     mEngine.mBuffer.size(), paClipOff, &audioCallback, this);
 

@@ -26,11 +26,20 @@
  * by Link.
  */
 
+#if defined(ESP_PLATFORM)
+
+#define LINK_ASIO_NAMESPACE asio
+
+#else
+
 #pragma push_macro("ASIO_STANDALONE")
-#define ASIO_STANDALONE 1
 
 #pragma push_macro("ASIO_NO_TYPEID")
 #define ASIO_NO_TYPEID 1
+#define asio link_asio_1_28_0
+#define LINK_ASIO_NAMESPACE link_asio_1_28_0
+#define ASIO_STANDALONE 1
+#endif
 
 #if defined(LINK_PLATFORM_WINDOWS)
 #pragma push_macro("INCL_EXTRA_HTON_FUNCTIONS")
@@ -60,7 +69,10 @@
 #define _SCL_SECURE_NO_WARNINGS 1
 #pragma warning(push, 0)
 #pragma warning(disable : 4242)
+#pragma warning(disable : 4668)
 #pragma warning(disable : 4702)
+#pragma warning(disable : 5204)
+#pragma warning(disable : 5220)
 #endif
 
 #include <asio.hpp>
@@ -70,9 +82,6 @@
 #pragma pop_macro("INCL_EXTRA_HTON_FUNCTIONS")
 #endif
 
-#pragma pop_macro("ASIO_STANDALONE")
-#pragma pop_macro("ASIO_NO_TYPEID")
-
 #if defined(_MSC_VER)
 #pragma warning(pop)
 #undef _SCL_SECURE_NO_WARNINGS
@@ -81,3 +90,5 @@
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
+
+#undef asio

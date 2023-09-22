@@ -1,4 +1,4 @@
-/* Copyright 2016, Ableton AG, Berlin. All rights reserved.
+/* Copyright 2021, Ableton AG, Berlin. All rights reserved.
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,20 +17,29 @@
  *  please contact <link-devs@ableton.com>.
  */
 
-#include "Controller.hpp"
-#include <QGuiApplication>
-#include <QQmlApplicationEngine>
-#include <QQmlContext>
-#include <QQuickView>
-#include <QQuickWindow>
+#pragma once
 
-int main(int argc, char* argv[])
+#include <pthread.h>
+#include <thread>
+
+namespace ableton
 {
-  ableton::qlinkhut::Controller controller;
-  QGuiApplication app(argc, argv);
-  QQuickView view;
-  view.rootContext()->setContextProperty("controller", &controller);
-  view.setSource(QUrl("qrc:/main.qml"));
-  view.show();
-  return app.exec();
-}
+namespace platforms
+{
+namespace linux_
+{
+
+struct ThreadFactory
+{
+  template <typename Callable, typename... Args>
+  static std::thread makeThread(std::string name, Callable&& f, Args&&... args)
+  {
+    auto thread = std::thread(std::forward<Callable>(f), std::forward<Args>(args)...);
+    pthread_setname_np(thread.native_handle(), name.c_str());
+    return thread;
+  }
+};
+
+} // namespace linux_
+} // namespace platforms
+} // namespace ableton

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.5)
 
 set(build_flags_COMMON_LIST)
 set(build_flags_DEBUG_LIST)
@@ -32,6 +32,7 @@ if(UNIX)
       "-Wno-disabled-macro-expansion"
       "-Wno-exit-time-destructors"
       "-Wno-padded"
+      "-Wno-poison-system-directories"
       "-Wno-reserved-id-macro"
       "-Wno-unknown-warning-option"
       "-Wno-unused-member-function"
@@ -71,6 +72,9 @@ elseif(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
   else()
     add_definitions("/DLINK_BUILD_VLD=0")
   endif()
+  if(LINK_WINDOWS_SETTHREADDESCRIPTION)
+    add_definitions("/DLINK_WINDOWS_SETTHREADDESCRIPTION")
+  endif()
 
   set(build_flags_DEBUG_LIST
     "/DDEBUG=1"
@@ -107,9 +111,12 @@ elseif(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
     "/wd4640" # 'Instance': construction of local static object is not thread-safe
     "/wd4710" # 'Function': function not inlined
     "/wd4711" # Function 'function' selected for inline expansion
+    "/wd4723" # potential divide by 0
     "/wd4738" # Storing 32-bit float result in memory, possible loss of performance
     "/wd4820" # 'Bytes': bytes padding added after construct 'member_name'
+    "/wd4996" # Your code uses a function, class member, variable, or typedef that's marked deprecated
     "/wd5045" # Compiler will insert Spectre mitigation for memory load if /Qspectre switch specified
+    "/wd5204" # 'class' : class has virtual functions, but destructor is not virtual
   )
 
   if(MSVC_VERSION VERSION_GREATER 1800)
@@ -121,6 +128,8 @@ elseif(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
       "/wd4868" # Compiler may not enforce left-to-right evaluation order in braced initializer list
       "/wd5026" # Move constructor was implicitly defined as deleted
       "/wd5027" # Move assignment operator was implicitly defined as deleted
+      "/wd5262" # implicit fall-through
+      "/wd5264" # 'variable-name': 'const' variable is not used
     )
   endif()
 

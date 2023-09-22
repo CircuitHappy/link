@@ -21,6 +21,8 @@
 
 #include <ableton/link/LinearRegression.hpp>
 #include <chrono>
+#include <cmath>
+#include <utility>
 #include <vector>
 
 namespace ableton
@@ -28,21 +30,20 @@ namespace ableton
 namespace link
 {
 
-template <class T>
-class HostTimeFilter
+template <typename Clock, typename NumberType, std::size_t kNumPoints = 512>
+class BasicHostTimeFilter
 {
-  static const std::size_t kNumPoints = 512;
-  using Points = std::vector<std::pair<double, double>>;
+  using Points = std::vector<std::pair<NumberType, NumberType>>;
   using PointIt = typename Points::iterator;
 
 public:
-  HostTimeFilter()
+  BasicHostTimeFilter()
     : mIndex(0)
   {
     mPoints.reserve(kNumPoints);
   }
 
-  ~HostTimeFilter() = default;
+  ~BasicHostTimeFilter() = default;
 
   void reset()
   {
@@ -50,9 +51,9 @@ public:
     mPoints.clear();
   }
 
-  std::chrono::microseconds sampleTimeToHostTime(const double sampleTime)
+  std::chrono::microseconds sampleTimeToHostTime(const NumberType sampleTime)
   {
-    const auto micros = static_cast<double>(mHostTimeSampler.micros().count());
+    const auto micros = static_cast<NumberType>(mHostTimeSampler.micros().count());
     const auto point = std::make_pair(sampleTime, micros);
 
     if (mPoints.size() < kNumPoints)
@@ -75,8 +76,11 @@ public:
 private:
   std::size_t mIndex;
   Points mPoints;
-  T mHostTimeSampler;
+  Clock mHostTimeSampler;
 };
+
+template <typename Clock>
+using HostTimeFilter = BasicHostTimeFilter<Clock, double, 512>;
 
 } // namespace link
 } // namespace ableton

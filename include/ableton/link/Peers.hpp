@@ -47,7 +47,7 @@ class Peers
   struct Impl;
 
 public:
-  using Peer = std::pair<PeerState, asio::ip::address>;
+  using Peer = std::pair<PeerState, discovery::IpAddress>;
 
   Peers(util::Injected<IoContext> io,
     SessionMembershipCallback membership,
@@ -119,7 +119,7 @@ public:
     using GatewayObserverNodeState = PeerState;
     using GatewayObserverNodeId = NodeId;
 
-    GatewayObserver(std::shared_ptr<Impl> pImpl, asio::ip::address addr)
+    GatewayObserver(std::shared_ptr<Impl> pImpl, discovery::IpAddress addr)
       : mpImpl(std::move(pImpl))
       , mAddr(std::move(addr))
     {
@@ -137,8 +137,7 @@ public:
       // Check to handle the moved from case
       if (mpImpl)
       {
-        auto& io = *mpImpl->mIo;
-        io.async(Deleter{*this});
+        mpImpl->gatewayClosed(mAddr);
       }
     }
 
@@ -148,50 +147,29 @@ public:
       auto pImpl = observer.mpImpl;
       auto addr = observer.mAddr;
       assert(pImpl);
-      pImpl->mIo->async([pImpl, addr, state] {
-        pImpl->sawPeerOnGateway(std::move(state), std::move(addr));
-      });
+      pImpl->sawPeerOnGateway(std::move(state), std::move(addr));
     }
 
     friend void peerLeft(GatewayObserver& observer, const NodeId& id)
     {
       auto pImpl = observer.mpImpl;
       auto addr = observer.mAddr;
-      pImpl->mIo->async(
-        [pImpl, addr, id] { pImpl->peerLeftGateway(std::move(id), std::move(addr)); });
+      pImpl->peerLeftGateway(std::move(id), std::move(addr));
     }
 
     friend void peerTimedOut(GatewayObserver& observer, const NodeId& id)
     {
       auto pImpl = observer.mpImpl;
       auto addr = observer.mAddr;
-      pImpl->mIo->async(
-        [pImpl, addr, id] { pImpl->peerLeftGateway(std::move(id), std::move(addr)); });
+      pImpl->peerLeftGateway(std::move(id), std::move(addr));
     }
 
-    struct Deleter
-    {
-      Deleter(GatewayObserver& observer)
-        : mpImpl(std::move(observer.mpImpl))
-        , mAddr(std::move(observer.mAddr))
-      {
-      }
-
-      void operator()()
-      {
-        mpImpl->gatewayClosed(mAddr);
-      }
-
-      std::shared_ptr<Impl> mpImpl;
-      asio::ip::address mAddr;
-    };
-
     std::shared_ptr<Impl> mpImpl;
-    asio::ip::address mAddr;
+    discovery::IpAddress mAddr;
   };
 
   // Factory function for the gateway observer
-  friend GatewayObserver makeGatewayObserver(Peers& peers, asio::ip::address addr)
+  friend GatewayObserver makeGatewayObserver(Peers& peers, discovery::IpAddress addr)
   {
     return GatewayObserver{peers.mpImpl, std::move(addr)};
   }
@@ -210,54 +188,51 @@ private:
     {
     }
 
-    void sawPeerOnGateway(PeerState peerState, asio::ip::address gatewayAddr)
+    void sawPeerOnGateway(PeerState peerState, discovery::IpAddress gatewayAddr)
     {
       using namespace std;
 
       const auto peerSession = peerState.sessionId();
       const auto peerTimeline = peerState.timeline();
       const auto peerStartStopState = peerState.startStopState();
-      bool isNewSessionTimeline = false;
-      bool isNewSessionStartStopState = false;
+
+      bool isNewSessionTimeline = !sessionTimelineExists(peerSession, peerTimeline);
+      bool isNewSessionStartStopState =
+        !sessionStartStopStateExists(peerSession, peerStartStopState);
+
+      auto peer = make_pair(std::move(peerState), std::move(gatewayAddr));
+      const auto idRange = equal_range(begin(mPeers), end(mPeers), peer, PeerIdComp{});
+
       bool didSessionMembershipChange = false;
+      if (idRange.first == idRange.second)
       {
-        isNewSessionTimeline = !sessionTimelineExists(peerSession, peerTimeline);
-        isNewSessionStartStopState =
-          !sessionStartStopStateExists(peerSession, peerStartStopState);
+        // This peer is not currently known on any gateway
+        didSessionMembershipChange = true;
+        mPeers.insert(std::move(idRange.first), std::move(peer));
+      }
+      else
+      {
+        // We've seen this peer before... does it have a new session?
+        didSessionMembershipChange =
+          all_of(idRange.first, idRange.second, [&peerSession](const Peer& test) {
+            return test.first.sessionId() != peerSession;
+          });
 
-        auto peer = make_pair(move(peerState), move(gatewayAddr));
-        const auto idRange = equal_range(begin(mPeers), end(mPeers), peer, PeerIdComp{});
+        // was it on this gateway?
+        const auto addrRange =
+          equal_range(idRange.first, idRange.second, peer, AddrComp{});
 
-        if (idRange.first == idRange.second)
+        if (addrRange.first == addrRange.second)
         {
-          // This peer is not currently known on any gateway
-          didSessionMembershipChange = true;
-          mPeers.insert(move(idRange.first), move(peer));
+          // First time on this gateway, add it
+          mPeers.insert(std::move(addrRange.first), std::move(peer));
         }
         else
         {
-          // We've seen this peer before... does it have a new session?
-          didSessionMembershipChange =
-            all_of(idRange.first, idRange.second, [&peerSession](const Peer& test) {
-              return test.first.sessionId() != peerSession;
-            });
-
-          // was it on this gateway?
-          const auto addrRange =
-            equal_range(idRange.first, idRange.second, peer, AddrComp{});
-
-          if (addrRange.first == addrRange.second)
-          {
-            // First time on this gateway, add it
-            mPeers.insert(move(addrRange.first), move(peer));
-          }
-          else
-          {
-            // We have an entry for this peer on this gateway, update it
-            *addrRange.first = move(peer);
-          }
+          // We have an entry for this peer on this gateway, update it
+          *addrRange.first = std::move(peer);
         }
-      } // end lock
+      }
 
       // Invoke callbacks outside the critical section
       if (isNewSessionTimeline)
@@ -280,22 +255,20 @@ private:
       }
     }
 
-    void peerLeftGateway(const NodeId& nodeId, const asio::ip::address& gatewayAddr)
+    void peerLeftGateway(const NodeId& nodeId, const discovery::IpAddress& gatewayAddr)
     {
       using namespace std;
 
-      bool didSessionMembershipChange = false;
-      {
-        auto it = find_if(begin(mPeers), end(mPeers), [&](const Peer& peer) {
-          return peer.first.ident() == nodeId && peer.second == gatewayAddr;
-        });
+      auto it = find_if(begin(mPeers), end(mPeers), [&](const Peer& peer) {
+        return peer.first.ident() == nodeId && peer.second == gatewayAddr;
+      });
 
-        if (it != end(mPeers))
-        {
-          mPeers.erase(move(it));
-          didSessionMembershipChange = true;
-        }
-      } // end lock
+      bool didSessionMembershipChange = false;
+      if (it != end(mPeers))
+      {
+        mPeers.erase(std::move(it));
+        didSessionMembershipChange = true;
+      }
 
       if (didSessionMembershipChange)
       {
@@ -303,16 +276,14 @@ private:
       }
     }
 
-    void gatewayClosed(const asio::ip::address& gatewayAddr)
+    void gatewayClosed(const discovery::IpAddress& gatewayAddr)
     {
       using namespace std;
 
-      {
-        mPeers.erase(
-          remove_if(begin(mPeers), end(mPeers),
-            [&gatewayAddr](const Peer& peer) { return peer.second == gatewayAddr; }),
-          end(mPeers));
-      } // end lock
+      mPeers.erase(
+        remove_if(begin(mPeers), end(mPeers),
+          [&gatewayAddr](const Peer& peer) { return peer.second == gatewayAddr; }),
+        end(mPeers));
 
       mSessionMembershipCallback();
     }

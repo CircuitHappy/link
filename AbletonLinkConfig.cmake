@@ -31,14 +31,15 @@ elseif(WIN32)
     INTERFACE_COMPILE_DEFINITIONS
     LINK_PLATFORM_WINDOWS=1
   )
-  set_property(TARGET Ableton::Link APPEND PROPERTY
-    INTERFACE_COMPILE_OPTIONS
-    "/wd4503" # 'Identifier': decorated name length exceeded, name was truncated
-  )
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+elseif(CMAKE_SYSTEM_NAME MATCHES "Linux|kFreeBSD|GNU")
   set_property(TARGET Ableton::Link APPEND PROPERTY
     INTERFACE_COMPILE_DEFINITIONS
     LINK_PLATFORM_LINUX=1
+  )
+  set_property(TARGET Ableton::Link APPEND PROPERTY
+    INTERFACE_LINK_LIBRARIES
+    atomic
+    pthread
   )
 endif()
 

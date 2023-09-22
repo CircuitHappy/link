@@ -27,17 +27,16 @@ def parse_args():
         help='Build configuration to use (not supported by IDE generators)')
 
     arg_parser.add_argument(
-        '-q', '--with-qt',
-        help='Build Qt example apps',
-        action='store_true')
-
-    arg_parser.add_argument(
         '-g', '--generator',
         help='CMake generator to use (default: Determined by CMake)')
 
     arg_parser.add_argument(
         '-f', '--flags',
         help='Additional CMake flags')
+
+    arg_parser.add_argument(
+        '--thread-description',
+        help='Set thread description. (Windows only)')
 
     return arg_parser.parse_args(sys.argv[1:])
 
@@ -54,9 +53,6 @@ def build_cmake_args(args):
         cmake_args.append('-G')
         cmake_args.append(args.generator)
 
-    if args.with_qt:
-        cmake_args.append('-DLINK_BUILD_QT_EXAMPLES=ON')
-
     if args.configuration is not None:
         cmake_args.append('-DCMAKE_BUILD_TYPE=' + args.configuration)
 
@@ -68,6 +64,8 @@ def build_cmake_args(args):
             cmake_args.append('-DLINK_BUILD_ASIO=ON')
         else:
             cmake_args.append('-DLINK_BUILD_ASIO=OFF')
+        if args.thread_description == 'ON':
+            cmake_args.append('-DLINK_WINDOWS_SETTHREADDESCRIPTION=ON')
     elif 'linux' in sys.platform:
        if args.audio_driver == 'Jack':
            cmake_args.append('-DLINK_BUILD_JACK=ON')

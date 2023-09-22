@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.5)
 project(LinkExamples)
 
 #     _    ____ ___ ___
@@ -11,9 +11,9 @@ project(LinkExamples)
 if(WIN32)
   function(configure_asio asio_sdk_path_OUT)
     # ASIO-related path/file variables
-    set(asio_download_root "https://www.steinberg.net/sdk_downloads")
-    set(asio_file_name "asiosdk2.3.zip")
-    set(asio_dir_name "ASIOSDK2.3")
+    set(asio_download_root "https://download.steinberg.net/sdk_downloads")
+    set(asio_file_name "asiosdk_2.3.3_2019-06-14.zip")
+    set(asio_dir_name "asiosdk_2.3.3_2019-06-14")
     set(asio_working_dir "${CMAKE_BINARY_DIR}/modules")
     set(asio_output_path "${asio_working_dir}/${asio_file_name}")
 
@@ -71,7 +71,7 @@ elseif(WIN32)
       linkaudio/AudioPlatform_Wasapi.cpp
     )
   endif()
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+elseif(CMAKE_SYSTEM_NAME MATCHES "Linux|kFreeBSD|GNU")
   if(LINK_BUILD_JACK)
     set(linkhut_audio_SOURCES
       linkaudio/AudioPlatform_Jack.hpp
@@ -96,29 +96,7 @@ source_group("Audio Sources" FILES ${linkhut_audio_SOURCES})
 #
 
 function(configure_linkhut_executable target)
-  if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    target_link_libraries(${target} atomic pthread)
-  endif()
-
   target_link_libraries(${target} Ableton::Link)
-endfunction()
-
-function(configure_qlinkhut_executable target)
-  configure_linkhut_executable(${target})
-  target_link_libraries(${target} Qt5::Quick)
-
-  if(${CMAKE_CXX_COMPILER_ID} MATCHES Clang)
-    target_compile_options(${target} PRIVATE
-      "-Wno-global-constructors"
-      "-Wno-missing-prototypes"
-      "-Wno-undefined-reinterpret-cast"
-      "-Wno-zero-as-null-pointer-constant"
-      )
-  endif()
-
-  if(MSVC_VERSION VERSION_GREATER 1900)
-    target_compile_options(${target} PRIVATE "/wd4946")
-  endif()
 endfunction()
 
 function(configure_linkhut_audio_sources target)
@@ -127,7 +105,7 @@ function(configure_linkhut_audio_sources target)
     target_compile_definitions(${target} PRIVATE
       -DLINKHUT_AUDIO_PLATFORM_COREAUDIO=1
     )
-  elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+  elseif(CMAKE_SYSTEM_NAME MATCHES "Linux|kFreeBSD|GNU")
     if(LINK_BUILD_JACK)
       target_link_libraries(${target} jack)
       target_compile_definitions(${target} PRIVATE
@@ -210,66 +188,32 @@ configure_linkhut_audio_sources(LinkHut)
 configure_linkhut_executable(LinkHut)
 source_group("LinkHut" FILES ${linkhut_HEADERS} ${linkhut_SOURCES})
 
-#   ___  _     _       _    _   _       _
-#  / _ \| |   (_)_ __ | | _| | | |_   _| |_
-# | | | | |   | | '_ \| |/ / |_| | | | | __|
-# | |_| | |___| | | | |   <|  _  | |_| | |_
-#  \__\_\_____|_|_| |_|_|\_\_| |_|\__,_|\__|
+#  _     _       _    _   _       _   ____  _ _            _
+# | |   (_)_ __ | | _| | | |_   _| |_/ ___|(_) | ___ _ __ | |_
+# | |   | | '_ \| |/ / |_| | | | | __\___ \| | |/ _ \ '_ \| __|
+# | |___| | | | |   <|  _  | |_| | |_ ___) | | |  __/ | | | |_
+# |_____|_|_| |_|_|\_\_| |_|\__,_|\__|____/|_|_|\___|_| |_|\__|
 #
 
-if(LINK_BUILD_QT_EXAMPLES)
+set(linkhutsilent_HEADERS
+  linkaudio/AudioEngine.hpp
+  linkaudio/AudioPlatform_Dummy.hpp
+  ${link_HEADERS}
+)
 
-  set(CMAKE_AUTOMOC ON)
-  set(CMAKE_INCLUDE_CURRENT_DIR ON)
+set(linkhutsilent_SOURCES
+  linkaudio/AudioEngine.cpp
+  linkhut/main.cpp
+)
 
-  find_package(Qt5Quick REQUIRED)
+add_executable(LinkHutSilent
+  ${linkhutsilent_HEADERS}
+  ${linkhutsilent_SOURCES}
+)
 
-  set(qlinkhut_HEADERS
-    linkaudio/AudioEngine.hpp
-    linkaudio/AudioPlatform.hpp
-    qlinkhut/Controller.hpp
-    ${link_HEADERS}
-  )
+target_compile_definitions(LinkHutSilent PRIVATE
+  -DLINKHUT_AUDIO_PLATFORM_DUMMY=1
+)
 
-  set(qlinkhut_SOURCES
-    linkaudio/AudioEngine.cpp
-    qlinkhut/Controller.cpp
-    qlinkhut/main.cpp
-    ${link_SOURCES}
-  )
-  source_group("QLinkHut" FILES ${qlinkhut_HEADERS} ${qlinkhut_SOURCES})
-  qt5_add_resources(UI_RESOURCES qlinkhut/resources.qrc)
-
-  add_executable(QLinkHut
-    ${qlinkhut_HEADERS}
-    ${qlinkhut_SOURCES}
-    ${linkhut_audio_SOURCES}
-    ${UI_RESOURCES}
-  )
-
-  configure_linkhut_audio_sources(QLinkHut)
-  configure_qlinkhut_executable(QLinkHut)
-
-  # A silent version of QLinkHut that uses the Link application context instead of
-  # the audio buffer context. It is the same as QLinkHut except that it doesn't
-  # generate sound.
-
-  add_executable(QLinkHutSilent
-    ${qlinkhut_HEADERS}
-    ${qlinkhut_SOURCES}
-    linkaudio/AudioPlatform_Dummy.hpp
-    ${UI_RESOURCES}
-  )
-
-  target_compile_definitions(QLinkHutSilent PRIVATE
-    -DLINKHUT_AUDIO_PLATFORM_DUMMY=1
-  )
-  if(UNIX)
-    set_target_properties(QLinkHutSilent
-      PROPERTIES
-      COMPILE_FLAGS "-Wno-unused"
-    )
-  endif()
-
-  configure_qlinkhut_executable(QLinkHutSilent)
-endif()
+configure_linkhut_executable(LinkHutSilent)
+source_group("LinkHutSilent" FILES ${linkhutsilent_HEADERS} ${linkhutsilent_SOURCES})

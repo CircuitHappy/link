@@ -19,6 +19,7 @@
 
 #include <ableton/link/Controller.hpp>
 #include <ableton/link/Tempo.hpp>
+#include <ableton/platforms/stl/Random.hpp>
 #include <ableton/test/CatchWrapper.hpp>
 #include <ableton/util/Log.hpp>
 #include <ableton/util/test/Timer.hpp>
@@ -63,11 +64,20 @@ private:
 
 struct MockIoContext
 {
+  MockIoContext()
+  {
+  }
+
+  template <typename ExceptionHandler>
+  MockIoContext(ExceptionHandler)
+  {
+  }
+
   template <std::size_t BufferSize>
   struct Socket
   {
     std::size_t send(
-      const uint8_t* const, const size_t numBytes, const asio::ip::udp::endpoint&)
+      const uint8_t* const, const size_t numBytes, const discovery::UdpEndpoint&)
     {
       return numBytes;
     }
@@ -77,25 +87,29 @@ struct MockIoContext
     {
     }
 
-    asio::ip::udp::endpoint endpoint() const
+    discovery::UdpEndpoint endpoint() const
     {
       return {};
     }
   };
 
+  void stop()
+  {
+  }
+
   template <std::size_t BufferSize>
-  Socket<BufferSize> openUnicastSocket(const asio::ip::address_v4&)
+  Socket<BufferSize> openUnicastSocket(const discovery::IpAddress&)
   {
     return {};
   }
 
   template <std::size_t BufferSize>
-  Socket<BufferSize> openMulticastSocket(const asio::ip::address_v4&)
+  Socket<BufferSize> openMulticastSocket(const discovery::IpAddress&)
   {
     return {};
   }
 
-  std::vector<asio::ip::address> scanNetworkInterfaces()
+  std::vector<discovery::IpAddress> scanNetworkInterfaces()
   {
     return {};
   }
@@ -135,26 +149,14 @@ struct MockIoContext
   {
     handler();
   }
-
-  MockIoContext clone() const
-  {
-    return {};
-  }
-
-  template <typename ExceptionHandler>
-  MockIoContext clone(ExceptionHandler) const
-  {
-    return {};
-  }
 };
 
 using MockController = Controller<PeerCountCallback,
   TempoCallback,
   StartStopStateCallback,
   MockClock,
+  platforms::stl::Random,
   MockIoContext>;
-
-const auto kAnyBeatTime = Beats{5.};
 
 const auto kAnyTime = std::chrono::microseconds{6};
 
@@ -185,14 +187,14 @@ void testSetAndGetClientState(
   using namespace std::chrono;
 
   auto clock = MockClock{};
-  MockController controller(Tempo{100.0}, [](std::size_t) {}, [](Tempo) {}, [](bool) {},
-    clock, util::injectVal(MockIoContext{}));
+  MockController controller(
+    Tempo{100.0}, [](std::size_t) {}, [](Tempo) {}, [](bool) {}, clock);
 
   clock.advance(microseconds{1});
   const auto initialTimeline =
     Optional<Timeline>{Timeline{Tempo{60.}, Beats{0.}, kAnyTime}};
   const auto initialStartStopState =
-    Optional<StartStopState>{StartStopState{true, kAnyBeatTime, clock.micros()}};
+    Optional<ClientStartStopState>{ClientStartStopState{false, kAnyTime, clock.micros()}};
   const auto initialClientState =
     IncomingClientState{initialTimeline, initialStartStopState, clock.micros()};
 
@@ -207,8 +209,8 @@ void testSetAndGetClientState(
   {
     // Set client state with a StartStopState having the same timestamp as the current
     // StartStopState - don't advance clock
-    const auto outdatedStartStopState =
-      Optional<StartStopState>{StartStopState{false, kAnyBeatTime, clock.micros()}};
+    const auto outdatedStartStopState = Optional<ClientStartStopState>{
+      ClientStartStopState{false, kAnyTime, clock.micros()}};
     setClientState(controller,
       IncomingClientState{Optional<Timeline>{}, outdatedStartStopState, clock.micros()});
     CHECK(initialClientState == getClientState(controller));
@@ -218,9 +220,8 @@ void testSetAndGetClientState(
 
   SECTION("Set outdated start stop state (timestamp in past)")
   {
-    const auto outdatedStartStopState =
-      Optional<StartStopState>{StartStopState{false, kAnyBeatTime, microseconds{0}}};
-
+    const auto outdatedStartStopState = Optional<ClientStartStopState>{
+      ClientStartStopState{false, kAnyTime, microseconds{0}}};
     setClientState(controller,
       IncomingClientState{Optional<Timeline>{}, outdatedStartStopState, clock.micros()});
     CHECK(initialClientState == getClientState(controller));
@@ -229,7 +230,7 @@ void testSetAndGetClientState(
   SECTION("Set empty client state")
   {
     setClientState(controller, IncomingClientState{Optional<Timeline>{},
-                                 Optional<StartStopState>{}, clock.micros()});
+                                 Optional<ClientStartStopState>{}, clock.micros()});
     CHECK(initialClientState == getClientState(controller));
   }
 
@@ -237,8 +238,8 @@ void testSetAndGetClientState(
   {
     const auto expectedTimeline =
       Optional<Timeline>{Timeline{Tempo{80.}, Beats{1.}, kAnyTime}};
-    const auto expectedStartStopState =
-      Optional<StartStopState>{StartStopState{false, kAnyBeatTime, clock.micros()}};
+    const auto expectedStartStopState = Optional<ClientStartStopState>{
+      ClientStartStopState{false, kAnyTime, clock.micros()}};
     const auto expectedClientState =
       IncomingClientState{expectedTimeline, expectedStartStopState, clock.micros()};
     setClientState(controller, expectedClientState);
@@ -256,7 +257,7 @@ void testCallbackInvocation(SetClientStateFunctionT setClientState)
   auto tempoCallback = TempoClientCallback{};
   auto startStopStateCallback = StartStopStateClientCallback{};
   MockController controller(Tempo{100.0}, [](std::size_t) {}, std::ref(tempoCallback),
-    std::ref(startStopStateCallback), clock, util::injectVal(MockIoContext{}));
+    std::ref(startStopStateCallback), clock);
 
   clock.advance(microseconds{1});
 
@@ -265,8 +266,8 @@ void testCallbackInvocation(SetClientStateFunctionT setClientState)
 
   const auto initialTimeline =
     Optional<Timeline>{Timeline{initialTempo, Beats{0.}, kAnyTime}};
-  const auto initialStartStopState = Optional<StartStopState>{
-    StartStopState{initialIsPlaying, kAnyBeatTime, clock.micros()}};
+  const auto initialStartStopState = Optional<ClientStartStopState>{
+    ClientStartStopState{initialIsPlaying, kAnyTime, clock.micros()}};
   setClientState(controller, {initialTimeline, initialStartStopState, clock.micros()});
 
   SECTION("Callbacks are called when setting new client state")
@@ -282,8 +283,8 @@ void testCallbackInvocation(SetClientStateFunctionT setClientState)
     {
       const auto timeline =
         Optional<Timeline>{Timeline{initialTempo, Beats{1.}, kAnyTime}};
-      const auto startStopState = Optional<StartStopState>{
-        StartStopState{initialIsPlaying, kAnyBeatTime, clock.micros()}};
+      const auto startStopState = Optional<ClientStartStopState>{
+        ClientStartStopState{initialIsPlaying, kAnyTime, clock.micros()}};
       setClientState(controller, {timeline, startStopState, clock.micros()});
       CHECK(tempoCallback.tempos.empty());
       CHECK(startStopStateCallback.startStopStates.empty());
@@ -293,147 +294,151 @@ void testCallbackInvocation(SetClientStateFunctionT setClientState)
 
 } // namespace
 
-
-TEST_CASE("Controller | ConstructOptimistically", "[Controller]")
+TEST_CASE("Controller")
 {
-  MockController controller(Tempo{100.0}, [](std::size_t) {}, [](Tempo) {}, [](bool) {},
-    MockClock{}, util::injectVal(MockIoContext{}));
+  SECTION("ConstructOptimistically")
+  {
+    MockController controller(
+      Tempo{100.0}, [](std::size_t) {}, [](Tempo) {}, [](bool) {}, MockClock{});
 
-  CHECK(!controller.isEnabled());
-  CHECK(!controller.isStartStopSyncEnabled());
-  CHECK(0 == controller.numPeers());
-  const auto tl = controller.clientState().timeline;
-  CHECK(Tempo{100.0} == tl.tempo);
-}
+    CHECK(!controller.isEnabled());
+    CHECK(!controller.isStartStopSyncEnabled());
+    CHECK(0 == controller.numPeers());
+    const auto tl = controller.clientState().timeline;
+    CHECK(Tempo{100.0} == tl.tempo);
+  }
 
-TEST_CASE("Controller | ConstructWithInvalidTempo", "[Controller]")
-{
-  MockController controllerLowTempo(Tempo{1.0}, [](std::size_t) {}, [](Tempo) {},
-    [](bool) {}, MockClock{}, util::injectVal(MockIoContext{}));
-  const auto tlLow = controllerLowTempo.clientState().timeline;
-  CHECK(Tempo{20.0} == tlLow.tempo);
+  SECTION("ConstructWithInvalidTempo")
+  {
+    MockController controllerLowTempo(
+      Tempo{1.0}, [](std::size_t) {}, [](Tempo) {}, [](bool) {}, MockClock{});
+    const auto tlLow = controllerLowTempo.clientState().timeline;
+    CHECK(Tempo{20.0} == tlLow.tempo);
 
-  MockController controllerHighTempo(Tempo{100000.0}, [](std::size_t) {}, [](Tempo) {},
-    [](bool) {}, MockClock{}, util::injectVal(MockIoContext{}));
-  const auto tlHigh = controllerHighTempo.clientState().timeline;
-  CHECK(Tempo{999.0} == tlHigh.tempo);
-}
+    MockController controllerHighTempo(
+      Tempo{100000.0}, [](std::size_t) {}, [](Tempo) {}, [](bool) {}, MockClock{});
+    const auto tlHigh = controllerHighTempo.clientState().timeline;
+    CHECK(Tempo{999.0} == tlHigh.tempo);
+  }
 
-TEST_CASE("Controller | EnableDisable", "[Controller]")
-{
-  MockController controller(Tempo{100.0}, [](std::size_t) {}, [](Tempo) {}, [](bool) {},
-    MockClock{}, util::injectVal(MockIoContext{}));
+  SECTION("EnableDisable")
+  {
+    MockController controller(
+      Tempo{100.0}, [](std::size_t) {}, [](Tempo) {}, [](bool) {}, MockClock{});
 
-  controller.enable(true);
-  CHECK(controller.isEnabled());
-  controller.enable(false);
-  CHECK(!controller.isEnabled());
-}
+    controller.enable(true);
+    CHECK(controller.isEnabled());
+    controller.enable(false);
+    CHECK(!controller.isEnabled());
+  }
 
-TEST_CASE("Controller | EnableDisableStartStopSync", "[Controller]")
-{
-  MockController controller(Tempo{100.0}, [](std::size_t) {}, [](Tempo) {}, [](bool) {},
-    MockClock{}, util::injectVal(MockIoContext{}));
+  SECTION("EnableDisableStartStopSync")
+  {
+    MockController controller(
+      Tempo{100.0}, [](std::size_t) {}, [](Tempo) {}, [](bool) {}, MockClock{});
 
-  controller.enableStartStopSync(true);
-  CHECK(controller.isStartStopSyncEnabled());
-  controller.enableStartStopSync(false);
-  CHECK(!controller.isStartStopSyncEnabled());
-}
+    controller.enableStartStopSync(true);
+    CHECK(controller.isStartStopSyncEnabled());
+    controller.enableStartStopSync(false);
+    CHECK(!controller.isStartStopSyncEnabled());
+  }
 
-TEST_CASE("Controller | SetAndGetClientStateThreadSafe", "[Controller]")
-{
-  testSetAndGetClientState(
-    [](MockController& controller, IncomingClientState clientState) {
-      controller.setClientState(clientState);
-    },
-    [](MockController& controller) { return controller.clientState(); });
-}
+  SECTION("SetAndGetClientStateThreadSafe")
+  {
+    testSetAndGetClientState(
+      [](MockController& controller, IncomingClientState clientState) {
+        controller.setClientState(clientState);
+      },
+      [](MockController& controller) { return controller.clientState(); });
+  }
 
-TEST_CASE("Controller | SetAndGetClientStateRealtimeSafe", "[Controller]")
-{
-  testSetAndGetClientState(
-    [](MockController& controller, IncomingClientState clientState) {
-      controller.setClientStateRtSafe(clientState);
-    },
-    [](MockController& controller) { return controller.clientStateRtSafe(); });
-}
+  SECTION("SetAndGetClientStateRealtimeSafe")
+  {
+    testSetAndGetClientState(
+      [](MockController& controller, IncomingClientState clientState) {
+        controller.setClientStateRtSafe(clientState);
+      },
+      [](MockController& controller) { return controller.clientStateRtSafe(); });
+  }
 
-TEST_CASE("Controller | SetClientStateRealtimeSafeAndGetItThreadSafe", "[Controller]")
-{
-  testSetAndGetClientState(
-    [](MockController& controller, IncomingClientState clientState) {
-      controller.setClientStateRtSafe(clientState);
-    },
-    [](MockController& controller) { return controller.clientState(); });
-}
+  SECTION("SetClientStateRealtimeSafeAndGetItThreadSafe")
+  {
+    testSetAndGetClientState(
+      [](MockController& controller, IncomingClientState clientState) {
+        controller.setClientStateRtSafe(clientState);
+      },
+      [](MockController& controller) { return controller.clientState(); });
+  }
 
-TEST_CASE("Controller | SetClientStateThreadSafeAndGetItRealtimeSafe", "[Controller]")
-{
-  testSetAndGetClientState(
-    [](MockController& controller, IncomingClientState clientState) {
-      controller.setClientState(clientState);
-    },
-    [](MockController& controller) {
-      MockClock{}.advance(seconds{2});
-      return controller.clientStateRtSafe();
-    });
-}
+  SECTION("SetClientStateThreadSafeAndGetItRealtimeSafe")
+  {
+    testSetAndGetClientState(
+      [](MockController& controller, IncomingClientState clientState) {
+        controller.setClientState(clientState);
+      },
+      [](MockController& controller) {
+        MockClock{}.advance(seconds{2});
+        return controller.clientStateRtSafe();
+      });
+  }
 
-TEST_CASE("Controller | CallbacksCalledBySettingClientStateThreadSafe", "[Controller]")
-{
-  testCallbackInvocation([](MockController& controller, IncomingClientState clientState) {
-    controller.setClientState(clientState);
-  });
-}
+  SECTION("CallbacksCalledBySettingClientStateThreadSafe")
+  {
+    testCallbackInvocation(
+      [](MockController& controller, IncomingClientState clientState) {
+        controller.setClientState(clientState);
+      });
+  }
 
-TEST_CASE("Controller | CallbacksCalledBySettingClientStateRealtimeSafe", "[Controller]")
-{
-  testCallbackInvocation([](MockController& controller, IncomingClientState clientState) {
-    controller.setClientStateRtSafe(clientState);
-  });
-}
+  SECTION("CallbacksCalledBySettingClientStateRealtimeSafe")
+  {
+    testCallbackInvocation(
+      [](MockController& controller, IncomingClientState clientState) {
+        controller.setClientStateRtSafe(clientState);
+      });
+  }
 
-TEST_CASE("Controller | GetClientStateRtSafeGracePeriod", "[Controller]")
-{
-  using namespace std::chrono;
+  SECTION("GetClientStateRtSafeGracePeriod")
+  {
+    using namespace std::chrono;
 
-  auto clock = MockClock{};
-  auto tempoCallback = TempoClientCallback{};
-  auto startStopStateCallback = StartStopStateClientCallback{};
-  MockController controller(Tempo{100.0}, [](std::size_t) {}, std::ref(tempoCallback),
-    std::ref(startStopStateCallback), clock, util::injectVal(MockIoContext{}));
-  controller.enable(true);
+    auto clock = MockClock{};
+    auto tempoCallback = TempoClientCallback{};
+    auto startStopStateCallback = StartStopStateClientCallback{};
+    MockController controller(Tempo{100.0}, [](std::size_t) {}, std::ref(tempoCallback),
+      std::ref(startStopStateCallback), clock);
+    controller.enable(true);
 
-  clock.advance(microseconds{1});
-  const auto initialTimeline =
-    Optional<Timeline>{Timeline{Tempo{50.}, Beats{0.}, clock.micros()}};
-  const auto initialStartStopState =
-    Optional<StartStopState>{StartStopState{true, kAnyBeatTime, clock.micros()}};
-  const auto initialState =
-    IncomingClientState{initialTimeline, initialStartStopState, clock.micros()};
+    clock.advance(microseconds{1});
+    const auto initialTimeline =
+      Optional<Timeline>{Timeline{Tempo{50.}, Beats{0.}, clock.micros()}};
+    const auto initialStartStopState = Optional<ClientStartStopState>{
+      ClientStartStopState{true, kAnyTime, clock.micros()}};
+    const auto initialState =
+      IncomingClientState{initialTimeline, initialStartStopState, clock.micros()};
 
-  controller.setClientStateRtSafe(
-    {initialTimeline, initialStartStopState, clock.micros()});
-  REQUIRE(initialState == controller.clientState());
-  REQUIRE(initialState == controller.clientStateRtSafe());
+    controller.setClientStateRtSafe(
+      {initialTimeline, initialStartStopState, clock.micros()});
+    REQUIRE(initialState == controller.clientState());
+    REQUIRE(initialState == controller.clientStateRtSafe());
 
-  clock.advance(microseconds{1});
-  const auto newTimeline =
-    Optional<Timeline>{Timeline{Tempo{70.}, Beats{1.}, clock.micros()}};
-  const auto newStartStopState =
-    Optional<StartStopState>{StartStopState{false, kAnyBeatTime, clock.micros()}};
-  const auto newState =
-    IncomingClientState{newTimeline, newStartStopState, clock.micros()};
+    clock.advance(microseconds{1});
+    const auto newTimeline =
+      Optional<Timeline>{Timeline{Tempo{70.}, Beats{1.}, clock.micros()}};
+    const auto newStartStopState = Optional<ClientStartStopState>{
+      ClientStartStopState{false, kAnyTime, clock.micros()}};
+    const auto newState =
+      IncomingClientState{newTimeline, newStartStopState, clock.micros()};
 
-  controller.setClientState({newTimeline, newStartStopState, clock.micros()});
-  clock.advance(milliseconds{500});
-  CHECK(newState == controller.clientState());
-  CHECK(initialState == controller.clientStateRtSafe());
+    controller.setClientState({newTimeline, newStartStopState, clock.micros()});
+    clock.advance(milliseconds{500});
+    CHECK(newState == controller.clientState());
+    CHECK(initialState == controller.clientStateRtSafe());
 
-  clock.advance(milliseconds{500});
-  CHECK(newState == controller.clientState());
-  CHECK(newState == controller.clientStateRtSafe());
+    clock.advance(milliseconds{500});
+    CHECK(newState == controller.clientState());
+    CHECK(newState == controller.clientStateRtSafe());
+  }
 }
 
 } // namespace link

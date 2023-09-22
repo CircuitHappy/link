@@ -28,11 +28,11 @@ namespace ableton
 namespace platforms
 {
 
-#ifdef linux
-#undef linux
+#if defined(__FreeBSD_kernel__)
+#define CLOCK_MONOTONIC_RAW CLOCK_MONOTONIC
 #endif
 
-namespace linux
+namespace linux_
 {
 
 template <clockid_t CLOCK>
@@ -51,6 +51,6 @@ public:
 using ClockMonotonic = Clock<CLOCK_MONOTONIC>;
 using ClockMonotonicRaw = Clock<CLOCK_MONOTONIC_RAW>;
 
-} // namespace linux
+} // namespace linux_
 } // namespace platforms
 } // namespace ableton

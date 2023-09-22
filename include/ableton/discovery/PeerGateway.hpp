@@ -124,7 +124,7 @@ private:
       auto newTo = make_pair(mPruneTimer.now() + std::chrono::seconds(ttl), peerId);
       mPeerTimeouts.insert(
         upper_bound(begin(mPeerTimeouts), end(mPeerTimeouts), newTo, TimeoutCompare{}),
-        move(newTo));
+        std::move(newTo));
 
       sawPeer(*mObserver, nodeState);
       scheduleNextPruning();
@@ -216,7 +216,7 @@ PeerGateway<Messenger, PeerObserver, IoContext> makePeerGateway(
 // IpV4 gateway types
 template <typename StateQuery, typename IoContext>
 using IpV4Messenger = UdpMessenger<
-  IpV4Interface<typename util::Injected<IoContext>::type&, v1::kMaxMessageSize>,
+  IpInterface<typename util::Injected<IoContext>::type&, v1::kMaxMessageSize>,
   StateQuery,
   IoContext>;
 
@@ -226,11 +226,11 @@ using IpV4Gateway =
     PeerObserver,
     IoContext>;
 
-// Factory function to bind a PeerGateway to an IpV4Interface with the given address.
+// Factory function to bind a PeerGateway to an IpInterface with the given address.
 template <typename PeerObserver, typename NodeState, typename IoContext>
 IpV4Gateway<PeerObserver, NodeState, IoContext> makeIpV4Gateway(
   util::Injected<IoContext> io,
-  const asio::ip::address_v4& addr,
+  const IpAddress& addr,
   util::Injected<PeerObserver> observer,
   NodeState state)
 {
@@ -240,11 +240,11 @@ IpV4Gateway<PeerObserver, NodeState, IoContext> makeIpV4Gateway(
   const uint8_t ttl = 5;
   const uint8_t ttlRatio = 20;
 
-  auto iface = makeIpV4Interface<v1::kMaxMessageSize>(injectRef(*io), addr);
+  auto iface = makeIpInterface<v1::kMaxMessageSize>(injectRef(*io), addr);
 
-  auto messenger =
-    makeUdpMessenger(injectVal(move(iface)), move(state), injectRef(*io), ttl, ttlRatio);
-  return {injectVal(move(messenger)), move(observer), move(io)};
+  auto messenger = makeUdpMessenger(
+    injectVal(std::move(iface)), std::move(state), injectRef(*io), ttl, ttlRatio);
+  return {injectVal(std::move(messenger)), std::move(observer), std::move(io)};
 }
 
 } // namespace discovery

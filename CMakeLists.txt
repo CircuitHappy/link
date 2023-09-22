@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.5)
 project(Link)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -11,7 +11,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 #       |_|
 
 # Note: Please use the LINK_* prefix for all project-specific options
-option(LINK_BUILD_QT_EXAMPLES "Build examples (Requires Qt)" OFF)
 
 if(UNIX)
   option(LINK_ENABLE_ASAN "Build with Address Sanitizier (ASan)" OFF)
@@ -22,6 +21,8 @@ if(WIN32)
   option(LINK_BUILD_ASIO "Build example applications with ASIO driver" ON)
   option(LINK_BUILD_VLD "Build with VLD support (VLD must be installed separately)" OFF)
 endif()
+
+option(LINK_BUILD_TESTS "Build unit test binaries" ON)
 
 #  ____       _   _
 # |  _ \ __ _| |_| |__  ___
@@ -34,10 +35,14 @@ endif()
 include(cmake_include/ConfigureCompileFlags.cmake)
 include(cmake_include/CatchConfig.cmake)
 include(AbletonLinkConfig.cmake)
+include(extensions/abl_link/abl_link.cmake)
 
 add_subdirectory(include)
+if(LINK_BUILD_TESTS)
 add_subdirectory(src)
+endif()
 add_subdirectory(examples)
+add_subdirectory(extensions/abl_link)
 
 #  ____
 # / ___| _   _ _ __ ___  _ __ ___   __ _ _ __ _   _

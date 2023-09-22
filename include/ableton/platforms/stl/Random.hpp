@@ -1,4 +1,4 @@
-/* Copyright 2016, Ableton AG, Berlin. All rights reserved.
+/* Copyright 2019, Ableton AG, Berlin. All rights reserved.
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,16 +17,35 @@
  *  please contact <link-devs@ableton.com>.
  */
 
-import QtQuick 2.0
+#pragma once
 
-Rectangle {
-    property var index: 0
-    property var currentBeat: -1
-    property var countIn: false
-    property var activeColor: "#404040"
-    property var countInColor: "#909090"
-    height: 328;
-    border.width: 1;
-    border.color: "#FFFFFF";
-    color: index == currentBeat ? (countIn ? countInColor : activeColor) : "#404040"
-}
+#include <random>
+
+namespace ableton
+{
+namespace platforms
+{
+namespace stl
+{
+
+struct Random
+{
+  Random()
+    : gen(rd())
+    , dist(33, 126) // printable ascii chars
+  {
+  }
+
+  uint8_t operator()()
+  {
+    return static_cast<uint8_t>(dist(gen));
+  }
+
+  std::random_device rd;
+  std::mt19937 gen;
+  std::uniform_int_distribution<unsigned> dist;
+};
+
+} // namespace stl
+} // namespace platforms
+} // namespace ableton
