@@ -59,12 +59,25 @@ inline Beats nextPhaseMatch(const Beats x, const Beats target, const Beats quant
   return x + phaseDiff;
 }
 
+inline Beats nextPhaseMatchSingle(const Beats x, const Beats target, const Beats quantum)
+{
+  const auto desiredPhase = phase(target, quantum);
+  const auto xPhase = phase(x, quantum);
+  const auto phaseDiff = (desiredPhase - xPhase + quantum) % quantum;
+  return x + phaseDiff;
+}
+
 // Return the closest value to x that matches the phase of the target
 // with respect to the given quantum. The result deviates from x by at
 // most quantum/2, but may be less than x.
 inline Beats closestPhaseMatch(const Beats x, const Beats target, const Beats quantum)
 {
   return nextPhaseMatch(x - Beats{0.5 * quantum.floating()}, target, quantum);
+}
+
+inline Beats closestPhaseMatchSingle(const Beats x, const Beats target, const Beats quantum)
+{
+  return nextPhaseMatchSingle(x - Beats{0.5f * quantum.floatingSingle()}, target, quantum);
 }
 
 // Interprets the given timeline as encoding a quantum boundary at its
@@ -78,6 +91,13 @@ inline Beats toPhaseEncodedBeats(
 {
   const auto beat = tl.toBeats(time);
   return closestPhaseMatch(beat, beat - tl.beatOrigin, quantum);
+}
+
+inline Beats toPhaseEncodedBeatsSingle(
+  const Timeline& tl, const std::chrono::microseconds time, const Beats quantum)
+{
+  const auto beat = tl.toBeatsSingle(time);
+  return closestPhaseMatchSingle(beat, beat - tl.beatOrigin, quantum);
 }
 
 // The inverse of toPhaseEncodedBeats. Given a phase encoded beat
