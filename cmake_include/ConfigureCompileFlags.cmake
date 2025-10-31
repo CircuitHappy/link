@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 
 set(build_flags_COMMON_LIST)
 set(build_flags_DEBUG_LIST)
@@ -35,6 +35,7 @@ if(UNIX)
       "-Wno-poison-system-directories"
       "-Wno-reserved-id-macro"
       "-Wno-unknown-warning-option"
+      "-Wno-unsafe-buffer-usage"
       "-Wno-unused-member-function"
     )
 
