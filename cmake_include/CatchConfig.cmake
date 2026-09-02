@@ -1,3 +1,4 @@
+
 add_library(Catch::Catch IMPORTED INTERFACE)
 
 set_property(TARGET Catch::Catch APPEND PROPERTY
